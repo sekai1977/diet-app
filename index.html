@@ -53,6 +53,14 @@ main{padding:14px 14px 8px}
 .bubble.strict{background:var(--blue-pale)}
 .bubble .bname{font-size:.7rem; color:var(--rose-deep); display:block; margin-bottom:2px}
 .bubble.strict .bname{color:var(--blue)}
+/* chat */
+.chatlog{display:flex;flex-direction:column;gap:8px;max-height:340px;overflow-y:auto;padding:4px 2px}
+.cmsg{max-width:84%;padding:8px 12px;border-radius:14px;font-size:.92rem;line-height:1.7;white-space:pre-wrap;word-break:break-word}
+.cmsg.t{align-self:flex-start;background:var(--rose-pale);border-bottom-left-radius:4px}
+.cmsg.u{align-self:flex-end;background:var(--blue-pale);border-bottom-right-radius:4px}
+.cmsg .bname{font-size:.7rem;color:var(--rose-deep);display:block;margin-bottom:2px}
+.chatin{display:flex;gap:8px;margin-top:8px}
+.chatin input{flex:1;min-width:0}
 
 /* stats */
 .statrow{display:flex; gap:8px}
@@ -436,6 +444,17 @@ hr.sep{border:none; border-top:1px dashed #EFDCD1; margin:14px 0}
     <h2>📋 <span id="rvDate"></span> の総評</h2>
     <div class="score"><div class="num" id="rvScore">-<small> 点</small></div><div class="stamp" id="rvStamp"></div></div>
     <div class="rv" id="rvBody"></div>
+    <button class="btn sub wide mt12" onclick="openChat()">💬 先生に返信する</button>
+  </div>
+
+  <div class="card" id="chatCard">
+    <h2>💬 こはる先生とおしゃべり</h2>
+    <div class="chatlog" id="chatLog"></div>
+    <div class="chatin">
+      <input type="text" id="chatText" placeholder="先生にメッセージ…" onkeydown="if(event.key==='Enter'){event.preventDefault();sendChat();}">
+      <button class="btn" onclick="sendChat()">送信</button>
+    </div>
+    <p class="note mt8" id="chatHint"></p>
   </div>
 
   <div class="card">
@@ -576,6 +595,11 @@ hr.sep{border:none; border-top:1px dashed #EFDCD1; margin:14px 0}
       <div class="teacher mt8">
         <svg class="avatar" viewBox="0 0 64 64"><use href="#avatarSym"/></svg>
         <div class="bubble"><span class="bname">こはる先生</span><span id="aiComment"></span></div>
+      </div>
+      <label class="f mt8">違っていたら、一言で教えてください</label>
+      <div class="chatin">
+        <input type="text" id="aiFix" placeholder="例：これは豚汁じゃなくて味噌汁です" onkeydown="if(event.key==='Enter'){event.preventDefault();aiReanalyze();}">
+        <button class="btn sub" onclick="aiReanalyze()">再判定</button>
       </div>
       <div class="btnrow mt12">
         <button class="btn ghost" onclick="aiRetry()">やり直す</button>
@@ -1342,9 +1366,13 @@ function makeReviewLocal(){
   if(good.length){ html+=`<h4 class="good">🌸 ここがすばらしい！</h4>`+good.slice(0,3).map(t=>`<div class="item">${t}</div>`).join(""); }
   else html+=`<h4 class="good">🌸 まずはここから</h4><div class="item">記録を開いてくれたこと自体が第一歩です。1つでいいので今日の記録を残してみましょう。</div>`;
   if(strict.length){ html+=`<h4 class="strict">📏 ビシッと言わせてください</h4>`+strict.slice(0,3).map(t=>`<div class="item strict">${t}</div>`).join(""); }
-  html+=`<div class="mission">🎯 <b>明日のミッション：</b>${pick(MSG.missions)}</div>`;
+  const mission=pick(MSG.missions);
+  html+=`<div class="mission">🎯 <b>明日のミッション：</b>${mission}</div>`;
   document.getElementById("rvBody").innerHTML=html;
   document.getElementById("reviewCard").scrollIntoView({behavior:"smooth"});
+  const plain=s=>String(s).replace(/<[^>]+>/g,"");
+  S.lastReview={ds:ds, score:score, good:good.slice(0,3).map(plain), strict:strict.slice(0,3).map(plain), mission:plain(mission)};
+  save();
 }
 function renderTeacher(){
   renderCalendar(); renderWeek(); renderBadges();
@@ -1490,6 +1518,7 @@ go("home");
 
 /* ============ AI連携（写真判定・AI総評） ============ */
 if(!S.ai) S.ai={provider:"gemini", key:"", model:""};
+if(!S.chat) S.chat=[];
 function aiReady(){ return S.ai && S.ai.provider!=="none" && !!S.ai.key; }
 function defModel(prov){ return prov==="claude" ? "claude-haiku-4-5" : "gemini-3.5-flash"; }
 function aiModelName(){ return (S.ai.model||"").trim() || defModel(S.ai.provider); }
@@ -1601,25 +1630,45 @@ function openAiModal(){
 function closeAiModal(){ document.getElementById("aiModalBg").classList.remove("open"); }
 function aiRetry(){ aiPane("aiPick"); }
 
+let aiLastB64=null, aiLastDataUrl=null;
 async function analyzePhoto(file){
   aiPane("aiLoading");
   try{
     const dataUrl=await fileToB64(file);
-    const b64=dataUrl.split(",")[1];
+    aiLastDataUrl=dataUrl; aiLastB64=dataUrl.split(",")[1];
+  }catch(e){
+    document.getElementById("aiErrMsg").textContent="写真を読み込めませんでした… もう一度選んでください";
+    aiPane("aiError"); return;
+  }
+  runPhotoAnalysis("");
+}
+function aiReanalyze(){
+  const f=document.getElementById("aiFix").value.trim();
+  if(!f||!aiLastB64) return;
+  runPhotoAnalysis(f);
+}
+async function runPhotoAnalysis(fix){
+  aiPane("aiLoading");
+  try{
     const memo=document.getElementById("aiMemo").value.trim();
+    const fixTxt = fix ? `
+前回あなたはこう判定しました：${aiItems.map(i=>`${i.n}(${i.k}kcal)`).join("、")||"（なし）"}
+それに対してユーザーから訂正・補足がありました。必ず反映して判定し直してください：「${fix}」
+コメントでは、教えてくれたことへのお礼も一言添えてください。` : "";
     const prompt=
 `あなたは「こはる先生」。優しくてかわいい日本の管理栄養士です（優しさ5：厳しさ5——よく褒め、言うべきことは1つだけ愛を持ってビシッと言う）。
 写真に写っている食事のメニューを判定し、日本の一般的な栄養データに基づいて、品目ごとのカロリー(kcal)とたんぱく質(g)を概算してください。
-ユーザーからのメモ：${memo||"（なし）"}
+ユーザーからのメモ：${memo||"（なし）"}${fixTxt}
 必ず次の形のJSONだけを返してください。他の文章は書かないでください：
 {"items":[{"name":"品目名","kcal":数値,"protein":数値}],"comment":"こはる先生としての日本語コメント2〜3文。絵文字を少しだけ。"}`;
-    const text=await aiCall(prompt,b64);
+    const text=await aiCall(prompt,aiLastB64);
     const j=parseAiJson(text);
     if(!Array.isArray(j.items)||!j.items.length) throw new Error("判定結果が空でした");
     aiItems=j.items.map(it=>({n:String(it.name||"?").slice(0,40), k:Math.max(0,Math.round(+it.kcal||0)), p:Math.max(0,Math.round((+it.protein||0)*10)/10)}));
     aiLastComment=String(j.comment||"");
-    document.getElementById("aiThumb").src=dataUrl;
+    document.getElementById("aiThumb").src=aiLastDataUrl;
     document.getElementById("aiComment").textContent=aiLastComment;
+    document.getElementById("aiFix").value="";
     renderAiRows();
     aiPane("aiResult");
   }catch(e){
@@ -1703,6 +1752,8 @@ ${mealTxt}
     if(j.mission) html+=`<div class="mission">🎯 <b>ミッション：</b>${esc(j.mission)}</div>`;
     if(j.closing) html+=`<div class="mission" style="background:var(--rose-pale)">🌸 ${esc(j.closing)}</div>`;
     document.getElementById("rvBody").innerHTML=html;
+    S.lastReview={ds:ds, score:score, good:good.slice(0,3).map(String), strict:strict.slice(0,3).map(String), mission:String(j.mission||"")};
+    save();
   }catch(e){
     makeReviewLocal(); // AIが使えないときは内蔵の先生が代打
   }
@@ -1736,9 +1787,79 @@ JSONだけを返す：{"comment":"日本語2〜4文。絵文字少し。"}`;
 const _saveWeight=saveWeight;
 saveWeight=function(){ _saveWeight(); aiWeightComment(); };
 
+/* --- こはる先生とおしゃべり --- */
+function chatEsc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;"); }
+function renderChat(){
+  const box=document.getElementById("chatLog");
+  const msgs=S.chat.slice(-30);
+  box.innerHTML = msgs.length
+    ? msgs.map(m=>`<div class="cmsg ${m.r==="u"?"u":"t"}">${m.r==="t"?'<span class="bname">こはる先生</span>':""}${chatEsc(m.t)}</div>`).join("")
+    : '<p class="note">総評へのお返事、質問、今日のできごと、ちょっとした弱音——なんでも話しかけてくださいね🌸</p>';
+  document.getElementById("chatHint").innerHTML = aiReady() ? "" : "おしゃべりには、下の<b>AIカメラ設定</b>でAPIキーの設定が必要です";
+  box.scrollTop=box.scrollHeight;
+}
+function openChat(){
+  document.getElementById("chatCard").scrollIntoView({behavior:"smooth",block:"center"});
+  setTimeout(()=>document.getElementById("chatText").focus(),350);
+}
+function chatContext(){
+  const ds=today(), P=S.profile;
+  const {k,p}=intakeOf(ds), burn=burnOf(ds);
+  const tgt=P?targetKcal(P,latestWeight()):null;
+  const w=S.weights[ds], m=mealsOf(ds);
+  const mealTxt=MEAL_DEF.map(([key,ic,name])=>{
+    const items=m[key]; if(!items.length)return null;
+    return `${name}: `+items.map(f=>`${f.n}${f.q!==1?"×"+f.q:""}(${Math.round(f.k*f.q)}kcal)`).join("、");
+  }).filter(Boolean).join(" ／ ")||"（まだ記録なし）";
+  const rv=(S.lastReview&&S.lastReview.ds===ds)
+    ? `${S.lastReview.score}点。褒め：${S.lastReview.good.join("・")||"—"}。指摘：${S.lastReview.strict.join("・")||"—"}。ミッション：${S.lastReview.mission||"—"}`
+    : "（今日の総評はまだ出していません）";
+  return `【今日(${fmtDate(ds)})の状況】体重:${w!=null?w+"kg":"未記録"}${P?` 目標体重:${P.goal}kg`:""} 摂取:約${k}kcal${tgt?`／目標${tgt}kcal`:""} たんぱく質:${p}g 運動消費:約${burn}kcal 連続記録:${streak()}日
+【今日食べたもの】${mealTxt}
+【今日のあなたの総評】${rv}`;
+}
+let _chatBusy=false;
+async function sendChat(){
+  const inp=document.getElementById("chatText");
+  const t=inp.value.trim();
+  if(!t||_chatBusy) return;
+  if(!aiReady()){ document.getElementById("chatHint").innerHTML="おしゃべりには、下の<b>AIカメラ設定</b>でAPIキーの設定が必要です🙏"; return; }
+  inp.value="";
+  S.chat.push({r:"u",t:t,ds:today()});
+  if(S.chat.length>60) S.chat=S.chat.slice(-60);
+  save(); renderChat();
+  const box=document.getElementById("chatLog");
+  box.insertAdjacentHTML("beforeend",'<div class="cmsg t" id="chatTyping"><span class="bname">こはる先生</span>･･･</div>');
+  box.scrollTop=box.scrollHeight;
+  _chatBusy=true;
+  try{
+    const hist=S.chat.slice(-10).map(m=>(m.r==="u"?nm():"こはる先生")+"："+m.t).join("\n");
+    const prompt=
+`あなたは「こはる先生」。優しくてかわいい日本の管理栄養士キャラです。性格バランスは優しさ5：厳しさ5——よく褒め、言うべきことは愛を持ってビシッと言います。ユーザー「${nm()}」と、ダイエット記録アプリの中でチャットしています。
+${chatContext()}
+【これまでの会話（新しいものが下）】
+${hist}
+最後の${nm()}のメッセージに、こはる先生として返事をしてください。
+・会話らしく2〜4文、絵文字は少しだけ
+・記録の数字に触れられるときは具体的に触れる
+・総評への反論や言い訳には、受け止めた上で優しく、必要ならビシッと
+・体調不良や医療的な相談には判断せず、お医者さんへの相談をすすめる
+必ず次の形のJSONだけを返してください：{"reply":"返事の日本語テキスト"}`;
+    const j=parseAiJson(await aiCall(prompt,null));
+    const reply=String(j.reply||"").trim();
+    if(!reply) throw new Error("empty");
+    S.chat.push({r:"t",t:reply,ds:today()});
+  }catch(e){
+    S.chat.push({r:"t",t:"ごめんなさい、いま少し通信の調子が悪いみたいです…🙏 少し時間をおいて、もう一度話しかけてもらえますか？",ds:today()});
+  }
+  if(S.chat.length>60) S.chat=S.chat.slice(-60);
+  _chatBusy=false;
+  save(); renderChat();
+}
+
 /* --- 画面フック --- */
 const _renderTeacher=renderTeacher;
-renderTeacher=function(){ _renderTeacher(); fillAiSettings(); };
+renderTeacher=function(){ _renderTeacher(); fillAiSettings(); renderChat(); };
 const _renderFood=renderFood;
 renderFood=function(){
   _renderFood();
