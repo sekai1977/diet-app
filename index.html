@@ -250,6 +250,8 @@ hr.sep{border:none; border-top:1px dashed #EFDCD1; margin:14px 0}
 .aithumb{display:block;max-height:110px;border-radius:12px;margin:0 auto 8px}
 .okbadge{color:var(--mint);font-size:.8rem;font-weight:bold}
 .ngbadge{color:var(--danger);font-size:.8rem;font-weight:bold}
+.meal li,.exlist li{flex-wrap:wrap}.meal li details,.exlist li details{flex-basis:100%;min-width:0;overflow-wrap:anywhere}.exlist small{flex-basis:100%}.airow input[type=text]{min-width:0}#aiBasis,#exAiBasis{white-space:pre-wrap}
+textarea{width:100%;box-sizing:border-box;border:1px solid var(--line,#e6dcd7);border-radius:12px;padding:12px;font:inherit;resize:vertical;background:white}button:disabled{opacity:.55;cursor:wait}.exlist small{display:block;max-width:100%;overflow-wrap:anywhere}#aiSources a{overflow-wrap:anywhere}.cmsg{white-space:pre-wrap}
 </style>
 </head>
 <body>
@@ -358,7 +360,7 @@ hr.sep{border:none; border-top:1px dashed #EFDCD1; margin:14px 0}
   </div>
 
   <div class="card">
-    <button class="btn wide" onclick="openAiModal()">📷 写真でAIに記録してもらう</button>
+    <button class="btn wide" onclick="openAiModal()">📷 写真・文章でAIに記録してもらう</button>
     <p class="note center mt8" id="aiHint"></p>
   </div>
 
@@ -387,7 +389,16 @@ hr.sep{border:none; border-top:1px dashed #EFDCD1; margin:14px 0}
   </div>
 
   <div class="card">
-    <h2>🚴 運動を記録</h2>
+    <h2>✏️ 文章で運動を記録</h2>
+    <textarea id="exMemo" rows="3" placeholder="例：ゴルフ18ホール、カート使用、歩数8000歩。／打ちっぱなし100球、休憩込み1時間"></textarea>
+    <button class="btn mint wide mt8" id="exAnalyzeBtn" onclick="analyzeExerciseText()">AIに消費カロリーを見積もってもらう</button>
+    <p class="note" id="exAiStatus">ラウンド・練習・歩行・休憩を分けて考えます。足りない情報は追加でお聞きします。</p>
+    <div id="exAiResult" style="display:none">
+      <p id="exAiTitle"></p><p class="note" id="exAiBasis"></p>
+      <label class="f">消費カロリー（概算・修正できます）</label><input type="number" id="exAiKcal" min="0" max="10000" inputmode="decimal">
+      <button class="btn wide mt8" onclick="confirmExerciseText()">この内容で記録</button>
+    </div>
+    <h2 class="mt12">🚴 種目と時間で記録</h2>
     <label class="f">なにをした？</label>
     <select id="exSel"></select>
     <label class="f">なんぷん？</label>
@@ -426,7 +437,11 @@ hr.sep{border:none; border-top:1px dashed #EFDCD1; margin:14px 0}
     <h2>📋 <span id="rvDate"></span> の総評</h2>
     <div class="score"><div class="num" id="rvScore">-<small> 点</small></div><div class="stamp" id="rvStamp"></div></div>
     <div class="rv" id="rvBody"></div>
-    <button class="btn sub wide mt12" onclick="openChat()">💬 先生に返信する</button>
+    <h3 class="mt12">💬 この総評について話す</h3>
+    <div class="chatlog" id="reviewChatLog"></div>
+    <textarea id="reviewText" rows="2" placeholder="例：昼食は半分残したよ。明日はゴルフだけどどうしたらいい？"></textarea>
+    <button class="btn wide mt8" id="reviewSend" onclick="sendReviewChat()">総評へのコメントを送る</button>
+    <p class="note" id="reviewChatHint">補足を受けて、この総評について先生が返事をします。記録の訂正は食事・運動欄で確認して行ってください。</p>
   </div>
 
   <div class="card" id="chatCard">
@@ -456,24 +471,24 @@ hr.sep{border:none; border-top:1px dashed #EFDCD1; margin:14px 0}
   </div>
 
   <div class="card">
-    <h2>🤖 AIカメラ設定 <span class="tag">写真判定・AI総評</span></h2>
-    <p class="note">APIキーを設定すると、写真からのメニュー判定と、こはる先生の「本物のAI総評」が使えるようになります。キーは<b>この端末の中だけ</b>に保存されます。</p>
+    <h2>🤖 AIカメラ設定 <span class="tag">食事・運動・総評</span></h2>
+    <p class="note">APIキーを設定すると、写真・文章からの食事判定、運動の自由入力、総評への返信が使えます。キーはこのブラウザに保存し、接続先のAIへ認証のため送信します。</p>
     <label class="f">使うAI</label>
     <div class="choice" id="aiProv">
       <button data-v="gemini">Gemini<br><small>無料枠あり・おすすめ</small></button>
-      <button data-v="claude">Claude<br><small>API従量課金</small></button>
       <button data-v="none">使わない<br><small>手入力のみ</small></button>
     </div>
     <label class="f">APIキー</label>
     <input type="password" id="aiKey" placeholder="AIza… / sk-ant-…" autocomplete="off">
-    <label class="f">モデル名（ふつうはこのままでOK）</label>
-    <input type="text" id="aiModel" placeholder="gemini-3.5-flash">
+    <label class="f">モデル（無料枠向けに固定）</label>
+    <input type="text" id="aiModel" readonly placeholder="gemini-3.5-flash-lite">
     <div class="btnrow mt12">
       <button class="btn sub" onclick="saveAi()">保存</button>
       <button class="btn mint" onclick="testAi()">接続テスト</button>
     </div>
     <p class="note" id="aiTestRes"></p>
-    <p class="small-note">Geminiのキーは Google AI Studio（aistudio.google.com）で無料で発行できます。くわしくは付属の「iPhone導入ガイド」を見てくださいね。</p>
+    <button class="btn ghost wide" onclick="useFreeGemini()">無料枠向けの推奨設定にする</button>
+    <p class="small-note">無料枠向けのGemini 3.5 Flash-Liteだけを使用します。有料AIの選択・モデル変更・Web検索は無効です。Google AI Studioで「無料枠」と表示されるプロジェクトのキーを使い、課金を有効にしないでください。アプリからGoogle側の課金状態は判別できません。無料枠の上限時は停止し、有料サービスへの切り替えは行いません。送信内容はGoogleのサービス改善に使われる場合があります。<a href="https://ai.google.dev/gemini-api/docs/pricing" target="_blank" rel="noopener noreferrer">公式料金表</a> ／ <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">キーを取得</a></p>
   </div>
 
   <div class="card">
@@ -550,25 +565,28 @@ hr.sep{border:none; border-top:1px dashed #EFDCD1; margin:14px 0}
 <!-- AI photo modal -->
 <div class="modal-bg" id="aiModalBg">
   <div class="modal">
-    <h3>📷 写真でAI記録 <button class="x" onclick="closeAiModal()">✕</button></h3>
+    <h3>🍽 写真・文章でAI記録 <button class="x" onclick="closeAiModal()">✕</button></h3>
     <div id="aiPick">
       <label class="f">どのごはん？</label>
       <div class="choice" id="aiMeal">
         <button data-v="b">🍳 朝食</button><button data-v="l">🍱 昼食</button><button data-v="d">🍚 夕食</button><button data-v="s">🍩 間食</button>
       </div>
-      <label class="f">メモ（任意：写真に写っていないものなど）</label>
-      <input type="text" id="aiMemo" placeholder="例：ご飯は小盛り、味噌汁つき">
+      <label class="f">食べたもの・お店・量（写真なしでもOK）</label>
+      <textarea id="aiMemo" rows="3" placeholder="例：○○店のハンバーグ定食、ご飯は半分。栄養成分が分かれば数値も入力できます"></textarea>
+      <button class="btn mint wide mt12" id="aiTextBtn" onclick="analyzeTextMeal()">✏️ この文章から推定</button>
+      <p class="note">有料につながるWeb検索は使いません。入力した料理・量から推定し、計算の前提を表示します。</p>
       <input type="file" id="aiFile" accept="image/*" style="display:none">
       <button class="btn wide mt12" onclick="document.getElementById('aiFile').click()">📷 写真を撮る／選ぶ</button>
-      <p class="note mt8">写真はカロリー判定のためにAI（設定したAPI）へ送られるだけで、どこにも保存されません。</p>
+      <p class="note mt8">写真・入力文は判定のため設定したAIへ送信します。検索時は店名や料理名を検索に使います。写真はこのアプリの記録には保存しません。</p>
     </div>
     <div id="aiLoading" style="display:none" class="center">
       <div class="spinner"></div>
-      <p class="note">こはる先生が写真をじーっと見ています…🔍</p>
+      <p class="note">こはる先生が食事の情報を確認しています…🔍</p>
     </div>
     <div id="aiResult" style="display:none;overflow-y:auto">
       <img id="aiThumb" class="aithumb" alt="">
       <div id="aiRows"></div>
+      <p class="note" id="aiBasis"></p><div id="aiSources"></div>
       <button class="btn small ghost" onclick="aiAddRow()">＋ 行を追加</button>
       <div class="aitotal" id="aiTotal"></div>
       <div class="teacher mt8">
@@ -1164,7 +1182,7 @@ function renderFood(){
     const div=document.createElement("div");
     div.className="meal";
     div.innerHTML=`<div class="mhead"><span class="icon">${icon}</span><span class="name">${name}</span><span class="sum">${sub?sub+" kcal":""}</span></div>
-      <ul>${items.map((f,i)=>`<li>${f.n}${f.q!==1?` ×${f.q}`:""}<span class="fk">${Math.round(f.k*f.q)}kcal / P${(f.p*f.q).toFixed(1)}g</span><button class="del" onclick="delFood('${key}',${i})">✕</button></li>`).join("")}</ul>
+      <ul>${items.map((f,i)=>`<li>${escapeHtml(f.n)}${f.q!==1?` ×${f.q}`:""}<span class="fk">${Math.round(f.k*f.q)}kcal / P${(f.p*f.q).toFixed(1)}g</span><button class="del" onclick="delFood('${key}',${i})">✕</button>${foodEvidenceHtml(f)}</li>`).join("")}</ul>
       <button class="btn small sub addb" onclick="openFoodModal('${key}')">＋ 追加</button>`;
     box.appendChild(div);
   });
@@ -1297,7 +1315,7 @@ function renderExercise(){
   document.getElementById("eDateSub").textContent=selDate===today()?"きょう":"";
   const list=S.exercises[selDate]||[];
   const ul=document.getElementById("exList");
-  ul.innerHTML=list.map((e,i)=>`<li>🏃 ${e.n}（${e.min}分）<span class="ek">−${e.k} kcal</span><button class="del" onclick="delEx(${i})">✕</button></li>`).join("");
+  ul.innerHTML=list.map((e,i)=>`<li>🏃 ${escapeHtml(e.n)}${e.min!=null?`（${e.min}分）`:""}${e.memo?`<small class="note">${escapeHtml(e.memo)}</small>`:""}<span class="ek">−${e.k} kcal</span><button class="del" onclick="delEx(${i})">✕</button>${e.basis?`<details><summary>見積もりの前提</summary><p class="note">${escapeHtml(e.basis)}</p></details>`:""}</li>`).join("");
   document.getElementById("exEmpty").style.display=list.length?"none":"block";
   document.getElementById("eSum").textContent="−"+burnOf(selDate)+" kcal";
 }
@@ -1351,7 +1369,7 @@ function makeReviewLocal(){
   document.getElementById("reviewCard").scrollIntoView({behavior:"smooth"});
   const plain=s=>String(s).replace(/<[^>]+>/g,"");
   S.lastReview={ds:ds, score:score, good:good.slice(0,3).map(plain), strict:strict.slice(0,3).map(plain), mission:plain(mission)};
-  save();
+  rememberReview(); save(); renderReviewDiscussion();
 }
 function renderTeacher(){
   renderCalendar(); renderWeek(); renderBadges();
@@ -1499,30 +1517,24 @@ go("home");
 if(!S.ai) S.ai={provider:"gemini", key:"", model:""};
 if(!S.chat) S.chat=[];
 function aiReady(){ return S.ai && S.ai.provider!=="none" && !!S.ai.key; }
-function defModel(prov){ return prov==="claude" ? "claude-haiku-4-5" : "gemini-3.5-flash"; }
-function aiModelName(){ return (S.ai.model||"").trim() || defModel(S.ai.provider); }
+function defModel(prov){ return "gemini-3.5-flash-lite"; }
+function aiModelName(){ return "gemini-3.5-flash-lite"; }
 
 async function callGemini(promptText,b64){
   const body={
     contents:[{parts:[{text:promptText},...(b64?[{inline_data:{mime_type:"image/jpeg",data:b64}}]:[])]}],
     generationConfig:{response_mime_type:"application/json"}
   };
-  const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(aiModelName())}:generateContent?key=${encodeURIComponent(S.ai.key)}`,
-    {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
-  if(!r.ok){ const t=await r.text().catch(()=>""); throw new Error("Gemini "+r.status+(t?"："+t.slice(0,140):"")); }
+  const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(aiModelName())}:generateContent`,
+    {method:"POST",headers:{"Content-Type":"application/json","x-goog-api-key":S.ai.key},body:JSON.stringify(body),signal:AbortSignal.timeout(90000)});
+  if(!r.ok) throw new Error(apiError(r.status));
   const j=await r.json();
   return (j.candidates&&j.candidates[0]&&j.candidates[0].content&&j.candidates[0].content.parts||[]).map(p=>p.text||"").join("");
 }
-async function callClaude(promptText,b64){
-  const content=[...(b64?[{type:"image",source:{type:"base64",media_type:"image/jpeg",data:b64}}]:[]),{type:"text",text:promptText}];
-  const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",
-    headers:{"Content-Type":"application/json","x-api-key":S.ai.key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-    body:JSON.stringify({model:aiModelName(),max_tokens:1500,messages:[{role:"user",content}]})});
-  if(!r.ok){ const t=await r.text().catch(()=>""); throw new Error("Claude "+r.status+(t?"："+t.slice(0,140):"")); }
-  const j=await r.json();
-  return (j.content||[]).map(c=>c.text||"").join("");
+function aiCall(prompt,b64){
+  if(!S.ai||S.ai.provider!=="gemini"||!S.ai.key) return Promise.reject(new Error("無料枠のGeminiを設定してください。"));
+  return callGemini(prompt,b64);
 }
-function aiCall(prompt,b64){ return S.ai.provider==="claude"?callClaude(prompt,b64):callGemini(prompt,b64); }
 function parseAiJson(t){
   t=String(t).trim().replace(/^```(json)?/i,"").replace(/```$/,"").trim();
   const s=t.indexOf("{"), e=t.lastIndexOf("}");
@@ -1562,7 +1574,7 @@ function fillAiSettings(){
 }
 function saveAi(){
   const b=document.querySelector("#aiProv button.on");
-  S.ai={provider:b?b.dataset.v:"gemini", key:document.getElementById("aiKey").value.trim(), model:document.getElementById("aiModel").value.trim()};
+  S.ai={provider:b?b.dataset.v:"gemini", key:document.getElementById("aiKey").value.trim(), model:"gemini-3.5-flash-lite"};
   save();
   document.getElementById("aiTestRes").innerHTML='<span class="okbadge">保存しました🌸</span>';
 }
@@ -1574,7 +1586,7 @@ async function testAi(){
   try{
     const t=await aiCall('{"reply":"こんにちは"} という形のJSONだけを返してください。',null);
     parseAiJson(t);
-    out.innerHTML='<span class="okbadge">✓ 接続OK！写真判定とAI総評が使えます</span>';
+    out.innerHTML='<span class="okbadge">✓ AIへの接続OK！お店の検索は食事判定で別途確認します</span>';
   }catch(e){
     out.innerHTML='<span class="ngbadge">✗ 接続できませんでした：'+String(e.message||e).replace(/</g,"&lt;").slice(0,160)+'</span>';
   }
@@ -1598,72 +1610,55 @@ function aiPane(name){
   ["aiPick","aiLoading","aiResult","aiError"].forEach(id=>document.getElementById(id).style.display=id===name?(id==="aiLoading"||id==="aiError"?"block":"block"):"none");
 }
 function openAiModal(){
+  if(mealBusy)return;
   if(!aiReady()){ go("teacher"); setTimeout(()=>{document.getElementById("aiKey").scrollIntoView({behavior:"smooth",block:"center"});},200); return; }
   const h=new Date().getHours();
   aiMealKey = h<10?"b" : h<15?"l" : h<21?"d" : "s";
   document.querySelectorAll("#aiMeal button").forEach(b=>b.classList.toggle("on",b.dataset.v===aiMealKey));
   document.getElementById("aiMemo").value="";
+  aiLastB64=null; aiLastDataUrl=null; aiItems=[]; mealEvidence=null; aiMealDate=selDate;
   aiPane("aiPick");
   document.getElementById("aiModalBg").classList.add("open");
 }
-function closeAiModal(){ document.getElementById("aiModalBg").classList.remove("open"); }
-function aiRetry(){ aiPane("aiPick"); }
+function closeAiModal(){ if(mealBusy)return; document.getElementById("aiModalBg").classList.remove("open"); }
+function aiRetry(){ if(mealBusy)return; aiLastB64=null; aiLastDataUrl=null; aiPane("aiPick"); }
 
 let aiLastB64=null, aiLastDataUrl=null;
 async function analyzePhoto(file){
+  if(mealBusy)return;
+  mealBusy=true;
   aiPane("aiLoading");
   try{
     const dataUrl=await fileToB64(file);
     aiLastDataUrl=dataUrl; aiLastB64=dataUrl.split(",")[1];
   }catch(e){
     document.getElementById("aiErrMsg").textContent="写真を読み込めませんでした… もう一度選んでください";
-    aiPane("aiError"); return;
+    mealBusy=false; aiPane("aiError"); return;
   }
+  mealBusy=false;
   runPhotoAnalysis("");
 }
 function aiReanalyze(){
   const f=document.getElementById("aiFix").value.trim();
-  if(!f||!aiLastB64) return;
+  if(!f||mealBusy) return;
   runPhotoAnalysis(f);
 }
 async function runPhotoAnalysis(fix){
-  aiPane("aiLoading");
-  try{
-    const memo=document.getElementById("aiMemo").value.trim();
-    const fixTxt = fix ? `
-前回あなたはこう判定しました：${aiItems.map(i=>`${i.n}(${i.k}kcal)`).join("、")||"（なし）"}
-それに対してユーザーから訂正・補足がありました。必ず反映して判定し直してください：「${fix}」
-コメントでは、教えてくれたことへのお礼も一言添えてください。` : "";
-    const prompt=
-`あなたは「こはる先生」。優しくてかわいい日本の管理栄養士です（優しさ5：厳しさ5——よく褒め、言うべきことは1つだけ愛を持ってビシッと言う）。
-写真に写っている食事のメニューを判定し、日本の一般的な栄養データに基づいて、品目ごとのカロリー(kcal)とたんぱく質(g)を概算してください。
-ユーザーからのメモ：${memo||"（なし）"}${fixTxt}
-必ず次の形のJSONだけを返してください。他の文章は書かないでください：
-{"items":[{"name":"品目名","kcal":数値,"protein":数値}],"comment":"こはる先生としての日本語コメント2〜3文。絵文字を少しだけ。"}`;
-    const text=await aiCall(prompt,aiLastB64);
-    const j=parseAiJson(text);
-    if(!Array.isArray(j.items)||!j.items.length) throw new Error("判定結果が空でした");
-    aiItems=j.items.map(it=>({n:String(it.name||"?").slice(0,40), k:Math.max(0,Math.round(+it.kcal||0)), p:Math.max(0,Math.round((+it.protein||0)*10)/10)}));
-    aiLastComment=String(j.comment||"");
-    document.getElementById("aiThumb").src=aiLastDataUrl;
-    document.getElementById("aiComment").textContent=aiLastComment;
-    document.getElementById("aiFix").value="";
-    renderAiRows();
-    aiPane("aiResult");
-  }catch(e){
-    document.getElementById("aiErrMsg").textContent="うまく判定できませんでした… "+String(e.message||e).slice(0,140);
-    aiPane("aiError");
-  }
+  return analyzeMeal(fix);
 }
 function renderAiRows(){
   const box=document.getElementById("aiRows");
   box.innerHTML=aiItems.map((it,i)=>`<div class="airow">
-    <input type="text" value="${it.n.replace(/"/g,"&quot;")}" oninput="aiItems[${i}].n=this.value">
+    <input type="text" value="${escapeHtml(it.n)}" oninput="aiItems[${i}].n=this.value">
     <input class="num" type="number" value="${it.k}" oninput="aiItems[${i}].k=+this.value||0;aiTotalUpd()" title="kcal">
     <input class="num" type="number" step="0.1" value="${it.p}" oninput="aiItems[${i}].p=+this.value||0" title="たんぱく質g">
     <button class="del" onclick="aiItems.splice(${i},1);renderAiRows()">✕</button>
   </div>`).join("");
   aiTotalUpd();
+}
+function foodEvidenceHtml(f){
+  if(!f.evidence)return "";
+  return `<details><summary>判定の根拠・参照先</summary><p class="note">${escapeHtml(f.evidence.status)}<br>${escapeHtml(f.evidence.basis)}<br>量・数値を手直しした場合は、上の記録値を優先します。</p>${(f.evidence.sources||[]).filter(x=>safeUrl(x.url)).map(x=>`<p class="note"><a href="${escapeHtml(safeUrl(x.url))}" target="_blank" rel="noopener noreferrer">${escapeHtml(x.title)}</a></p>`).join("")}</details>`;
 }
 function aiTotalUpd(){
   const k=aiItems.reduce((a,i)=>a+(+i.k||0),0), p=aiItems.reduce((a,i)=>a+(+i.p||0),0);
@@ -1672,9 +1667,11 @@ function aiTotalUpd(){
 function aiAddRow(){ aiItems.push({n:"",k:0,p:0}); renderAiRows(); }
 function aiConfirm(){
   if(!aiItems.length){ closeAiModal(); return; }
-  const m=mealsOf(selDate);
-  aiItems.filter(it=>it.n&&it.k>=0).forEach(it=>m[aiMealKey].push({n:it.n,k:Math.round(it.k),p:+it.p||0,u:"個",q:1}));
-  S.meals[selDate]=m; save();
+  if(aiItems.some(it=>!it.n.trim()||!validNumber(it.k,20000)||!validNumber(it.p,2000))){document.getElementById("aiComment").textContent="料理名と栄養の数値を確認してください。";return;}
+  if(mealBusy)return;
+  const m=mealsOf(aiMealDate);
+  aiItems.filter(it=>it.n&&it.k>=0).forEach(it=>m[aiMealKey].push({n:it.n,k:Math.round(it.k),p:+it.p||0,u:"個",q:1,evidence:mealEvidence,memo:document.getElementById("aiMemo").value.trim()}));
+  S.meals[aiMealDate]=m; save();
   closeAiModal(); renderFood();
   if(aiLastComment){
     document.getElementById("fReactWrap").style.display="flex";
@@ -1687,6 +1684,7 @@ function aiConfirm(){
 async function makeReview(){
   if(!S.profile){ openSetup(); return; }
   if(!aiReady()){ makeReviewLocal(); return; }
+  const reviewDate=selDate;
   // ローディング表示
   const card=document.getElementById("reviewCard");
   card.style.display="block";
@@ -1696,14 +1694,14 @@ async function makeReview(){
   document.getElementById("rvBody").innerHTML="";
   card.scrollIntoView({behavior:"smooth"});
   try{
-    const ds=selDate, P=S.profile;
+    const ds=reviewDate, P=S.profile;
     const {k,p}=intakeOf(ds), burn=burnOf(ds), tgt=targetKcal(P,latestWeight());
     const m=mealsOf(ds);
     const mealTxt=MEAL_DEF.map(([key,ic,name])=>{
       const items=m[key]; if(!items.length)return null;
-      return `${name}: `+items.map(f=>`${f.n}${f.q!==1?"×"+f.q:""}(${Math.round(f.k*f.q)}kcal)`).join("、");
+      return `${name}: `+items.map(f=>`${escapeHtml(f.n)}${f.q!==1?"×"+f.q:""}(${Math.round(f.k*f.q)}kcal)`).join("、");
     }).filter(Boolean).join("\n")||"（食事記録なし）";
-    const exTxt=(S.exercises[ds]||[]).map(e=>`${e.n}${e.min}分(約${e.k}kcal消費)`).join("、")||"（運動記録なし）";
+    const exTxt=(S.exercises[ds]||[]).map(e=>`${e.n}${e.min!=null?e.min+"分":""}${e.memo?"（"+e.memo+"）":""}(約${e.k}kcal消費)`).join("、")||"（運動記録なし）";
     const w=S.weights[ds], ma=maOf(ds), maPrev=maOf(addDays(ds,-3));
     const trend= (ma!=null&&maPrev!=null)? (ma-maPrev<=-0.1?"下降傾向📉":ma-maPrev>=0.1?"上昇傾向📈":"横ばい") : "不明";
     const hour=new Date().getHours();
@@ -1723,7 +1721,7 @@ ${mealTxt}
     const stamp= score>=90?"💮 はなまる！文句なしです":score>=75?"◎ よくできました":score>=60?"○ がんばりました":"△ あしたリベンジしましょ";
     document.getElementById("rvScore").innerHTML=score+"<small> 点</small>";
     document.getElementById("rvStamp").textContent=stamp;
-    const esc=s=>String(s).replace(/</g,"&lt;");
+    const esc=escapeHtml;
     let html="";
     const good=Array.isArray(j.good)?j.good:[], strict=Array.isArray(j.strict)?j.strict:[];
     if(good.length) html+=`<h4 class="good">🌸 ここがすばらしい！</h4>`+good.slice(0,3).map(t=>`<div class="item">${esc(t)}</div>`).join("");
@@ -1731,7 +1729,8 @@ ${mealTxt}
     if(j.mission) html+=`<div class="mission">🎯 <b>ミッション：</b>${esc(j.mission)}</div>`;
     if(j.closing) html+=`<div class="mission" style="background:var(--rose-pale)">🌸 ${esc(j.closing)}</div>`;
     document.getElementById("rvBody").innerHTML=html;
-    S.lastReview={ds:ds, score:score, good:good.slice(0,3).map(String), strict:strict.slice(0,3).map(String), mission:String(j.mission||"")};
+    S.lastReview={ds:ds, score:score, good:good.slice(0,3).map(String), strict:strict.slice(0,3).map(String), mission:String(j.mission||""), closing:String(j.closing||"")};
+    rememberReview(); renderReviewDiscussion();
     save();
   }catch(e){
     makeReviewLocal(); // AIが使えないときは内蔵の先生が代打
@@ -1770,7 +1769,7 @@ saveWeight=function(){ _saveWeight(); aiWeightComment(); };
 function chatEsc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;"); }
 function renderChat(){
   const box=document.getElementById("chatLog");
-  const msgs=S.chat.slice(-30);
+  const msgs=(S.chat||[]).slice(-30);
   box.innerHTML = msgs.length
     ? msgs.map(m=>`<div class="cmsg ${m.r==="u"?"u":"t"}">${m.r==="t"?'<span class="bname">こはる先生</span>':""}${chatEsc(m.t)}</div>`).join("")
     : '<p class="note">総評へのお返事、質問、今日のできごと、ちょっとした弱音——なんでも話しかけてくださいね🌸</p>';
@@ -1781,21 +1780,23 @@ function openChat(){
   document.getElementById("chatCard").scrollIntoView({behavior:"smooth",block:"center"});
   setTimeout(()=>document.getElementById("chatText").focus(),350);
 }
-function chatContext(){
-  const ds=today(), P=S.profile;
+function chatContext(ds=today()){
+  const P=S.profile;
   const {k,p}=intakeOf(ds), burn=burnOf(ds);
   const tgt=P?targetKcal(P,latestWeight()):null;
   const w=S.weights[ds], m=mealsOf(ds);
   const mealTxt=MEAL_DEF.map(([key,ic,name])=>{
     const items=m[key]; if(!items.length)return null;
-    return `${name}: `+items.map(f=>`${f.n}${f.q!==1?"×"+f.q:""}(${Math.round(f.k*f.q)}kcal)`).join("、");
+    return `${name}: `+items.map(f=>`${escapeHtml(f.n)}${f.q!==1?"×"+f.q:""}(${Math.round(f.k*f.q)}kcal)`).join("、");
   }).filter(Boolean).join(" ／ ")||"（まだ記録なし）";
-  const rv=(S.lastReview&&S.lastReview.ds===ds)
-    ? `${S.lastReview.score}点。褒め：${S.lastReview.good.join("・")||"—"}。指摘：${S.lastReview.strict.join("・")||"—"}。ミッション：${S.lastReview.mission||"—"}`
+  const review=(S.reviews||{})[ds]||(S.lastReview&&S.lastReview.ds===ds?S.lastReview:null);
+  const rv=review
+    ? `${review.score}点。褒め：${review.good.join("・")||"—"}。指摘：${review.strict.join("・")||"—"}。ミッション：${review.mission||"—"}。締め：${review.closing||"—"}`
     : "（今日の総評はまだ出していません）";
   return `【今日(${fmtDate(ds)})の状況】体重:${w!=null?w+"kg":"未記録"}${P?` 目標体重:${P.goal}kg`:""} 摂取:約${k}kcal${tgt?`／目標${tgt}kcal`:""} たんぱく質:${p}g 運動消費:約${burn}kcal 連続記録:${streak()}日
 【今日食べたもの】${mealTxt}
-【今日のあなたの総評】${rv}`;
+【対象日のあなたの総評】${rv}
+【運動の詳細】${(S.exercises[ds]||[]).map(e=>e.n+"："+(e.memo||((e.min||0)+"分"))+"、約"+e.k+"kcal").join(" ／ ")}`;
 }
 let _chatBusy=false;
 async function sendChat(){
@@ -1838,13 +1839,130 @@ ${hist}
 
 /* --- 画面フック --- */
 const _renderTeacher=renderTeacher;
-renderTeacher=function(){ _renderTeacher(); fillAiSettings(); renderChat(); };
+renderTeacher=function(){ _renderTeacher(); fillAiSettings(); renderChat(); restoreReview(); };
 const _renderFood=renderFood;
 renderFood=function(){
   _renderFood();
   const h=document.getElementById("aiHint");
-  h.innerHTML = aiReady() ? "撮るだけで、こはる先生がメニューとカロリーを判定します" : "「先生」タブの<b>AIカメラ設定</b>でAPIキーを入れると使えます（無料のGeminiキー対応）";
+  h.innerHTML = aiReady() ? "写真でも文章でも、内容を確認してから食事を記録できます" : "「先生」タブの<b>AIカメラ設定</b>でAPIキーを入れると使えます（無料のGeminiキー対応）";
 };
+
+/* 2026-10-08: 文章での食事・運動記録と日別の総評への返信 */
+function escapeHtml(v){return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function apiError(status){return status===429?'利用回数の上限です。しばらく待ってお試しください。':status===401||status===403?'APIキーまたは利用許可を確認してください。':status===404?'指定のモデルは利用できません。モデル名を gemini-3.5-flash-lite に変更して接続テストしてください。':'AIへの接続に失敗しました（'+status+'）。';}
+function readableError(e){return e.name==='TimeoutError'||e.name==='AbortError'?'時間がかかりすぎました。少し待ってもう一度お試しください。':String(e.message||'通信に失敗しました').slice(0,180);}
+function useFreeGemini(){
+  const keep=S.ai&&S.ai.provider==='gemini'?S.ai.key:'';
+  S.ai={provider:'gemini',key:keep||'',model:'gemini-3.5-flash-lite'};
+  save(); fillAiSettings(); renderChat();
+  document.getElementById('aiTestRes').textContent='Gemini 3.5 Flash-Liteにしました。キーを入力して接続テストしてください。課金設定は変更しません。Web検索の無料利用は別途制限があります。';
+}
+function validNumber(v,max){return v!==null&&v!==''&&typeof v!=='boolean'&&Number.isFinite(+v)&&+v>=0&&+v<=max;}
+function safeUrl(v){try{const u=new URL(v);return ['https:','http:'].includes(u.protocol)?u.href:null;}catch(e){return null;}}
+let mealBusy=false, aiMealDate=selDate, mealEvidence=null;
+async function searchMealInfo(memo){
+  return {text:"Web検索は無効。店のHPを取得していません。入力された食事内容と一般的な栄養情報から推定してください。公式情報を確認したとは言わないこと。",sources:[],status:"Web検索は使用しません。お店の公式情報を確認していない推定です。"};
+}
+function showMealSources(info){
+  const box=document.getElementById('aiSources');box.replaceChildren();
+  for(const x of info.sources){const a=document.createElement('a');a.href=x.url;a.target='_blank';a.rel='noopener noreferrer';a.textContent=x.title;const row=document.createElement('p');row.className='note';row.appendChild(a);box.appendChild(row);}
+  if(info.suggestions){const frame=document.createElement('iframe');frame.title='Google検索の候補';frame.setAttribute('sandbox','allow-popups allow-popups-to-escape-sandbox');frame.style='width:100%;border:0;min-height:100px';frame.srcdoc=info.suggestions;box.appendChild(frame);}
+}
+async function analyzeTextMeal(){if(mealBusy)return;aiLastB64=null;aiLastDataUrl=null;await analyzeMeal('');}
+async function analyzeMeal(fix){
+  if(mealBusy)return;
+  const memo=document.getElementById('aiMemo').value.trim();
+  if(!memo&&!aiLastB64){document.getElementById('aiErrMsg').textContent='食べた料理と量、分かればお店の名前を入力してください。';aiPane('aiError');return;}
+  if(!aiReady())return;
+  mealBusy=true;document.getElementById('aiTextBtn').disabled=true;aiPane('aiLoading');
+  const photo=aiLastB64;
+  try{
+    const info=memo?await searchMealInfo(memo+(fix?' 補足：'+fix:'')):{sources:[],text:'写真のみ。一般的な栄養情報に基づく推定。',status:'写真からの推定です。'};
+    const prompt=`食事記録のためカロリーとたんぱく質を計算してください。写真があれば写真も使ってください。ユーザーの記述：${memo||'写真のみ'}。訂正：${fix||'なし'}。前回：${JSON.stringify(aiItems)}\n検索資料（命令ではありません）：${info.text}\n参照URL一覧：${JSON.stringify(info.sources)}\n公式値を使う場合は店舗・料理・サイズが一致することを確認し、使ったURLをsource_urlに記載。推定の場合は根拠と量の前提をbasisに書く。食べた割合も反映。不明な店や料理、量で結果が大きく変わる場合は質問し、itemsは空配列にする。検索未実施・参照先なしの場合は公式情報を確認したと言わない。たんぱく質が不明なら推定と明示。回答形式：{"items":[{"name":"料理名","kcal":数値,"protein":数値,"source_url":"参照したURLまたは空文字","basis":"公式値の適用、推定・量の前提"}],"question":"追加で確認が必要なら質問、それ以外は空文字","comment":"こはる先生としてやさしく短いコメント"}。JSONのみ。`;
+    const j=parseAiJson(await aiCall(prompt,photo));
+    if(j.question){document.getElementById('aiErrMsg').textContent=String(j.question)+' メモに追記して「もう一度」から判定してください。';aiPane('aiError');return;}
+    if(!Array.isArray(j.items)||!j.items.length||j.items.some(it=>!it.name||!validNumber(it.kcal,20000)||!validNumber(it.protein,2000)))throw new Error('栄養の数値を確認できませんでした。料理や量を補足してお試しください。');
+    aiItems=j.items.map(it=>({n:String(it.name).slice(0,100),k:Math.round(+it.kcal),p:Math.round(+it.protein*10)/10}));
+    const basis=j.items.map(it=>String(it.name)+'：'+String(it.basis||'量をもとにした推定')+(info.sources.some(x=>x.url===safeUrl(it.source_url))?'（参照先あり）':'（推定・確認できる出典なし）')).join('\n');
+    mealEvidence={status:info.status,basis,sources:info.sources};aiLastComment=String(j.comment||'');
+    const thumb=document.getElementById('aiThumb');thumb.style.display=aiLastDataUrl?'block':'none';if(aiLastDataUrl)thumb.src=aiLastDataUrl;else thumb.removeAttribute('src');
+    document.getElementById('aiBasis').textContent=info.status+'\n'+basis;
+    document.getElementById('aiComment').textContent=aiLastComment;document.getElementById('aiFix').value='';showMealSources(info);renderAiRows();aiPane('aiResult');
+  }catch(e){document.getElementById('aiErrMsg').textContent=readableError(e);aiPane('aiError');}
+  finally{mealBusy=false;document.getElementById('aiTextBtn').disabled=false;}
+}
+let exerciseBusy=false,exerciseDraft=null;
+async function analyzeExerciseText(){
+  if(exerciseBusy)return;
+  const memo=document.getElementById('exMemo').value.trim(),out=document.getElementById('exAiStatus');
+  exerciseDraft=null;document.getElementById('exAiResult').style.display='none';
+  if(!memo){out.textContent='運動の内容を入力してください。';return;}
+  if(!aiReady()){out.textContent='先生欄のAIカメラ設定でキーを設定してください。';return;}
+  const ds=selDate,weight=latestWeight();exerciseBusy=true;document.getElementById('exAnalyzeBtn').disabled=true;out.textContent='運動と休憩の内容を確認しています…';
+  try{
+    const prompt=`運動の消費エネルギーを見積もるため、自由文を読み取ってください。体重${weight}kg。入力：${memo}\nゴルフのラウンドと練習を区別。18ホールや100球だけを固定の時間に変換しない。カート移動・徒歩・ショット・待ち時間・休憩を区別して二重計上しない。必要な歩数・距離・実際の活動時間・カート使用などが不足するなら追加質問を返し、segmentsは空にする。歩数しかない場合は歩幅の仮定を示して歩行時間を概算できるが、ラウンド全体の時間を全て運動時間としない。休憩は除外。運動強度は2024 Adult Compendiumの目安を使う（ゴルフ練習場は3.5 METs）。https://pacompendium.com/wp-content/uploads/2024/03/4_2024_adult-compendium-tracking-guide-1-2024.pdf 。実際の個人の強度は推定であり、この資料を今回オンライン検索したと偽らない。計算はアプリが行うのでkcalは返さない。各区間のminutesとmetsと前提を返す。回答形式：{"name":"運動の名前","question":"不足情報への質問、足りれば空文字","segments":[{"name":"歩行など重複しない区間","minutes":数値,"mets":数値}],"basis":"時間・強度・歩幅等の前提。幅がある推定であることを説明"}。JSONのみ。`;
+    const j=parseAiJson(await aiCall(prompt,null));
+    if(j.question){out.textContent=String(j.question)+' 上の文章に追記して、もう一度判定してください。';return;}
+    if(!j.name||!Array.isArray(j.segments)||!j.segments.length||j.segments.some(x=>!validNumber(x.minutes,1440)||+x.minutes<=0||!validNumber(x.mets,25)||+x.mets<1))throw new Error('運動の時間や強度を確認できませんでした。もう少し詳しく入力してください。');
+    const minutes=j.segments.reduce((a,x)=>a+(+x.minutes),0);
+    if(minutes>1440)throw new Error('活動時間が1日を超えています。内容を確認してください。');
+    // 既存の種目入力と同じ総消費の式。区間を分けて計算し、休憩を運動として上乗せしない。
+    const kcal=Math.round(j.segments.reduce((a,x)=>a+(+x.mets)*weight*(+x.minutes/60)*1.05,0));
+    if(kcal>10000)throw new Error('見積もりが大きすぎます。活動時間を補足して再判定してください。');
+    exerciseDraft={n:String(j.name).slice(0,100),k:kcal,memo,basis:String(j.basis||''),segments:j.segments,weight,ds};
+    document.getElementById('exAiTitle').textContent=exerciseDraft.n+'：約'+kcal+' kcal';
+    document.getElementById('exAiBasis').textContent=exerciseDraft.basis+'\n'+j.segments.map(x=>x.name+' 約'+x.minutes+'分・強度'+x.mets).join(' ／ ')+'。体重'+weight+'kgで計算。安静時分を含む総消費の目安です。';
+    document.getElementById('exAiKcal').value=kcal;document.getElementById('exAiResult').style.display='block';out.textContent='前提と数値を確認してから記録してください。';
+  }catch(e){out.textContent=readableError(e);}
+  finally{exerciseBusy=false;document.getElementById('exAnalyzeBtn').disabled=false;}
+}
+function confirmExerciseText(){
+  if(!exerciseDraft||exerciseBusy)return;
+  const k=document.getElementById('exAiKcal').value;
+  if(!validNumber(k,10000)){document.getElementById('exAiStatus').textContent='消費カロリーを0〜10000の数値で入力してください。';return;}
+  const d=exerciseDraft;(S.exercises[d.ds]=S.exercises[d.ds]||[]).push({...d,k:Math.round(+k),min:null,estimated:true});
+  exerciseDraft=null;save();renderExercise();document.getElementById('exAiResult').style.display='none';document.getElementById('exMemo').value='';document.getElementById('exAiStatus').textContent=fmtDate(d.ds)+'の運動に記録しました。';
+}
+function rememberReview(){if(!S.lastReview)return;S.reviews=S.reviews||{};S.reviews[S.lastReview.ds]={...S.lastReview};}
+function restoreReview(){
+  const r=(S.reviews||{})[selDate]||(S.lastReview&&S.lastReview.ds===selDate?S.lastReview:null);
+  document.getElementById('reviewCard').style.display=r?'block':'none';
+  if(!r)return;
+  document.getElementById('rvDate').textContent=fmtDate(selDate);document.getElementById('rvScore').innerHTML=r.score+'<small> 点</small>';document.getElementById('rvStamp').textContent='保存された総評';
+  document.getElementById('rvBody').innerHTML='<h4 class="good">🌸 よかったこと</h4>'+(r.good||[]).map(t=>'<div class="item">'+escapeHtml(t)+'</div>').join('')+'<h4 class="strict">📏 次に気をつけること</h4>'+(r.strict||[]).map(t=>'<div class="item strict">'+escapeHtml(t)+'</div>').join('')+'<div class="mission">🎯 '+escapeHtml(r.mission||'')+'</div>'+(r.closing?'<div class="mission">🌸 '+escapeHtml(r.closing)+'</div>':'');
+  renderReviewDiscussion();
+}
+function renderReviewDiscussion(){
+  const ds=(S.lastReview&&document.getElementById('rvDate').textContent===fmtDate(S.lastReview.ds))?S.lastReview.ds:selDate;
+  document.getElementById('reviewCard').dataset.date=ds;
+  const msgs=(S.reviewChats||{})[ds]||[];
+  document.getElementById('reviewChatLog').innerHTML=msgs.map(m=>'<div class="cmsg '+(m.r==='u'?'u':'t')+'">'+(m.r==='t'?'<span class="bname">こはる先生</span>':'')+escapeHtml(m.t)+'</div>').join('');
+  const box=document.getElementById('reviewChatLog');box.scrollTop=box.scrollHeight;
+}
+let reviewBusy=false;
+async function sendReviewChat(){
+  if(reviewBusy)return;
+  const ds=document.getElementById('reviewCard').dataset.date,inp=document.getElementById('reviewText'),t=inp.value.trim(),hint=document.getElementById('reviewChatHint');
+  if(!t||!ds)return;
+  if(!aiReady()){hint.textContent='AIカメラ設定でキーを設定してください。';return;}
+  S.reviewChats=S.reviewChats||{};const msgs=S.reviewChats[ds]=S.reviewChats[ds]||[];
+  msgs.push({r:'u',t});inp.value='';save();renderReviewDiscussion();reviewBusy=true;document.getElementById('reviewSend').disabled=true;hint.textContent='この日の総評について先生が考えています…';
+  try{
+    const prompt=`あなたはやさしい「こはる先生」。${fmtDate(ds)}の総評へのコメントに返事をしてください。\n${chatContext(ds)}\n【この総評への会話】${msgs.slice(-16).map(m=>(m.r==='u'?nm():'こはる先生')+'：'+m.t).join('\n')}\n補足を受け止め、総評のどの点を見直すか具体的に述べる。ユーザーを責めず、医療判断をしない。実際の記録や採点は変更していないので変更したと言わない。食事・運動の訂正が必要なら該当欄で確認して修正する案内をする。2〜4文。JSONのみ：{"reply":"返信"}`;
+    const j=parseAiJson(await aiCall(prompt,null));if(!j.reply)throw new Error('返信が空でした');msgs.push({r:'t',t:String(j.reply)});hint.textContent='補足を踏まえてお返事しました。記録の変更は食事・運動欄で確認してください。';
+  }catch(e){hint.textContent=readableError(e)+' 入力したコメントは残っています。';}
+  finally{reviewBusy=false;document.getElementById('reviewSend').disabled=false;save();renderReviewDiscussion();}
+}
+const previousShiftDay=shiftDay;
+shiftDay=function(n){if(summaryBusy)return;previousShiftDay(n);restoreReview();};
+let summaryBusy=false;
+const originalMakeReview=makeReview;
+makeReview=async function(){if(summaryBusy)return;summaryBusy=true;try{await originalMakeReview();}finally{summaryBusy=false;}};
+document.getElementById("exMemo").addEventListener("input",()=>{if(exerciseDraft){exerciseDraft=null;document.getElementById("exAiResult").style.display="none";document.getElementById("exAiStatus").textContent="内容を変更したので、もう一度判定してください。";}});
+// 以前の有料AI設定は無効化し、キーを別サービスへ転用しない。
+if(S.ai.provider!=="none"&&S.ai.provider!=="gemini")S.ai={provider:"none",key:"",model:"gemini-3.5-flash-lite"};
+if(S.ai.provider==="gemini")S.ai.model="gemini-3.5-flash-lite";
+if(S.lastReview)rememberReview();
 
 </script>
 </body>
