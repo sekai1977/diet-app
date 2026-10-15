@@ -500,7 +500,7 @@ textarea{width:100%;box-sizing:border-box;border:1px solid var(--line,#e6dcd7);b
       <button class="btn ghost" onclick="resetAll()">全データ削除</button>
     </div>
     <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
-    <p class="small-note">データはこの端末（ブラウザ）の中だけに保存されます。機種変更やブラウザ変更のときは「バックアップ保存」→新しい端末で「バックアップ読込」をしてください。<br>※カロリーはあくまで概算です。体調に不安があるときはお医者さんに相談してくださいね。</p>
+    <p class="small-note">データはこの端末（ブラウザ）の中だけに保存されます。機種変更やブラウザ変更のときは「バックアップ保存」→新しい端末で「バックアップ読込」をしてください。<br>APIキーはバックアップに含めません。同じブラウザで読み込むと設定済みのキーを維持します。別の端末・ブラウザではAIカメラ設定でキーを再入力してください。<br>※カロリーはあくまで概算です。体調に不安があるときはお医者さんに相談してくださいね。</p>
   </div>
 </section>
 </main>
@@ -1430,7 +1430,10 @@ function renderBadges(){
 
 /* ============ 設定・データ ============ */
 function exportData(){
-  const blob=new Blob([JSON.stringify(S,null,1)],{type:"application/json"});
+  // 書き出すコピーだけからキーを外し、この端末のAI設定は保持する。
+  const backup={...S};
+  if(backup.ai) backup.ai={...backup.ai,key:""};
+  const blob=new Blob([JSON.stringify(backup,null,1)],{type:"application/json"});
   const a=document.createElement("a");
   a.href=URL.createObjectURL(blob);
   a.download="diet-backup-"+today().replace(/-/g,"")+".json";
@@ -1442,7 +1445,11 @@ function importData(ev){
   r.onload=()=>{
     try{
       const d=JSON.parse(r.result);
-      if(d&&d.weights&&d.meals){ S=d; save(); go("home"); }
+      if(d&&d.weights&&d.meals){
+        // 旧バックアップ内のキーも取り込まず、この端末の設定を使う。
+        d.ai=S.ai?{...S.ai}:{provider:"gemini",key:"",model:"gemini-3.5-flash-lite"};
+        S=d; save(); go("home");
+      }
     }catch(e){}
   };
   r.readAsText(f);
